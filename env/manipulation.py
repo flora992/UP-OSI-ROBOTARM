@@ -32,6 +32,10 @@ class IIWACustomEnv(EnvBase):
     robot_class = IIWA
     robot_random_start = True
 
+    curriculum = 9
+    max_curriculum = 9
+    advance_threshold = 15
+
     def __init__(self, **kwargs):
         super().__init__(self.robot_class, **kwargs)
 

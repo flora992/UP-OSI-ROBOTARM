@@ -225,10 +225,6 @@ def run_ppo(args):
 
 
 def play(args):
-    from bottleneck import nanmean, nansum, ss
-    import matplotlib.pyplot as plt
-    import matplotlib.cm as mpl_color
-
     policy = torch.load(args.net, map_location="cpu")
     controller = policy.actor
 
@@ -237,16 +233,12 @@ def play(args):
     env.unwrapped.curriculum = 0
 
     obs = env.reset()
-    env.camera.lookat(env.robot.body_xyz)
 
     # Set global no_grad
     torch.set_grad_enabled(False)
     policy.train(mode=False)
 
     ep_reward = 0
-    com_xyzs = [env.robot.body_xyz]
-    arm_lengths = []
-    contact_states = []
     while True:
         if not render or not env.camera.env_should_wait:
             obs = torch.from_numpy(obs).float().unsqueeze(0)
@@ -257,71 +249,13 @@ def play(args):
             obs, reward, done, _ = env.step(cpu_actions)
             ep_reward += reward
 
-            # link_states = env.unwrapped._p.getLinkStates(
-            #     env.robot.id,
-            #     [p.bodyPartIndex for p in env.robot.parts.values()],
-            #     computeLinkVelocity=0,
-            # )
-            # com = nanmean([s[0] for s in link_states], axis=0)
-            com_xyzs.append(env.robot.body_xyz)
-            in_swing = env.robot.feet_contact.any()
-            colour = (1, 0, 0) if in_swing else (0, 0, 1)
-            env.unwrapped._p.addUserDebugLine(
-                com_xyzs[-2],
-                com_xyzs[-1],
-                lifeTime=0,
-                lineWidth=0.5,
-                lineColorRGB=colour,
-            )
-
-            ref_in_swing = (
-                hasattr(env.unwrapped, "_ref_is_swing")
-                and env.unwrapped._ref_is_swing[env.timestep]
-            )
-            colour = (1, 0, 0) if ref_in_swing else (0, 0, 0)
-            env.unwrapped._p.addUserDebugLine(
-                env.com_ref_xyz[env.timestep - 1],
-                env.com_ref_xyz[env.timestep],
-                lifeTime=0,
-                lineWidth=0.5,
-                lineColorRGB=colour,
-            )
-
-            arm_length = ss(env.robot.feet_xyz - env.robot.body_xyz, axis=-1)
-            arm_lengths.append(arm_length)
-            contact_states.append(env.robot.feet_contact.copy())
-
             if done:
                 print("--- Episode reward:", ep_reward)
                 obs = env.reset()
                 ep_reward = 0
 
-                if args.plot:
-                    length_arr = np.array(arm_lengths)
-                    contact_arr = np.array(contact_states)
-                    in_swing_phase = contact_arr.any(axis=-1).astype(np.float32)
-                    x = np.arange(len(length_arr))
-                    contact_marker = np.zeros_like(x)
-
-                    fig, ax = plt.subplots()
-                    cmap = mpl_color.get_cmap("coolwarm")
-                    ax.plot(x, length_arr[:, 0], marker=".", ls=":")
-                    ax.plot(x, length_arr[:, 1], marker=".", ls=":")
-                    ax.scatter(x, contact_marker, c=cmap(in_swing_phase), marker=".")
-                    plt.show()
-
-                arm_lengths = []
-                contact_states = []
-                com_xyzs = [env.robot.body_xyz]
-                env.unwrapped._p.removeAllUserDebugItems()
-
         if render:
             env.camera.wait()
-            camera_xyz = (
-                *env.robot.body_xyz[0:2],
-                env.handholds[env.next_step_index][2],
-            )
-            env.camera.track(camera_xyz)
             env.unwrapped._handle_keyboard()
 
 
@@ -342,7 +276,6 @@ def test(args):
 
         if render:
             env.camera.wait()
-            # env.camera.track(env.robot.body_xyz)
             env.unwrapped._handle_keyboard()
 
 
